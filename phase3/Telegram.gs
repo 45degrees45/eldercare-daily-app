@@ -2,6 +2,13 @@
 const BOT_TOKEN = 'PASTE_TELEGRAM_BOT_TOKEN_HERE';
 const CHAT_ID   = 'PASTE_TELEGRAM_CHAT_ID_HERE';
 
+function escapeTgHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 function sendTelegram(message) {
   const url = 'https://api.telegram.org/bot' + BOT_TOKEN + '/sendMessage';
   try {
@@ -12,6 +19,7 @@ function sendTelegram(message) {
     });
   } catch(e) {
     console.error('Telegram send failed:', e);
+    try { _log('telegramFail', String(e)); } catch(_) {}
   }
 }
 
@@ -23,7 +31,7 @@ function dailyMorningAlert() {
 
   if (tasks.length) {
     msg += '<b>Today\'s Tasks:</b>\n';
-    tasks.forEach(t => { msg += '- ' + t.title + ' (' + t.category + ')\n'; });
+    tasks.forEach(t => { msg += '- ' + escapeTgHtml(t.title) + ' (' + escapeTgHtml(t.category) + ')\n'; });
   } else {
     msg += 'No tasks due today!\n';
   }
@@ -35,7 +43,7 @@ function dailyMorningAlert() {
       const days = s.daysUntilReorder !== null
         ? ' (' + Math.abs(s.daysUntilReorder) + ' days ' + (s.daysUntilReorder <= 0 ? 'overdue' : 'left') + ')'
         : '';
-      msg += '- ' + s.item + days + ' -> ' + (s.status === 'order_now' ? 'ORDER NOW' : 'Order soon') + '\n';
+      msg += '- ' + escapeTgHtml(s.item) + days + ' -> ' + (s.status === 'order_now' ? 'ORDER NOW' : 'Order soon') + '\n';
     });
   }
 
@@ -48,8 +56,11 @@ function weeklySummaryAlert() {
   const last7 = rows.slice(-7);
   if (!last7.length) return;
 
+  const dayCount = last7.length;
+  const dataNote = dayCount < 7 ? ' (based on ' + dayCount + ' days)' : '';
+
   const avg = (key) => (last7.reduce((s, r) => s + (Number(r[key]) || 0), 0) / last7.length).toFixed(1);
-  let msg = '<b>ElderCare - Weekly Summary</b>\n\n';
+  let msg = '<b>ElderCare - Weekly Summary</b>' + dataNote + '\n\n';
   msg += 'Energy avg: ' + avg('energy') + '/10\n';
   msg += 'Sleep avg: ' + avg('sleep') + ' hrs\n';
   msg += 'Mood avg: ' + avg('mood') + '/10\n';
@@ -58,8 +69,10 @@ function weeklySummaryAlert() {
   const prevWeek = rows.slice(-14, -7);
   if (prevWeek.length) {
     const prevAvg = (prevWeek.reduce((s, r) => s + (Number(r.overall) || 0), 0) / prevWeek.length).toFixed(1);
-    const diff = (parseFloat(avg('overall')) - parseFloat(prevAvg)).toFixed(1);
-    msg += '\nVs last week: ' + (diff > 0 ? '+' : '') + diff;
+    const currentAvg = parseFloat(avg('overall'));
+    const diffNum = currentAvg - parseFloat(prevAvg);
+    const diffStr = diffNum.toFixed(1);
+    msg += '\nVs last week: ' + (diffNum > 0 ? '+' : '') + diffStr;
   }
   sendTelegram(msg);
 }

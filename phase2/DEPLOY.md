@@ -29,4 +29,4 @@ TEST CHECKLIST
 - Health sliders move and values update live
 - Tap Save Health Log - toast shows overall score
 - Trends screen shows chart after at least 1 health entry
-- Telegram alerts (Phase 3) fire at 8am daily
+- (Phase 3) Telegram alerts will fire once Telegram.gs is deployed
