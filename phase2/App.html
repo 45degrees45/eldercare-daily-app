@@ -1,0 +1,221 @@
+const state = { tasks: [], doneTasks: [], supplies: [], healthLogged: false };
+
+const CAT_ICONS = { Health: '💊', Finance: '💳', Home: '🏠', Garden: '🌱', Service: '🔧' };
+const STATUS_LABELS = { ok: 'Stock OK', order_soon: 'Order Soon', order_now: 'Order NOW', needs_setup: 'Setup needed' };
+const STATUS_BADGES = { ok: 'badge-ok', order_soon: 'badge-soon', order_now: 'badge-now', needs_setup: 'badge-setup' };
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('today-date').textContent =
+    new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+  loadTodayTasks();
+});
+
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    b.classList.remove('active');
+    b.removeAttribute('aria-current');
+  });
+  document.getElementById('screen-' + name).classList.add('active');
+  const navBtn = document.getElementById('nav-' + name);
+  navBtn.classList.add('active');
+  navBtn.setAttribute('aria-current', 'page');
+  if (name === 'supplies') loadSupplies();
+  if (name === 'charts') loadCharts();
+}
+
+function loadTodayTasks() {
+  document.getElementById('tasks-loading').style.display = 'block';
+  document.getElementById('tasks-list').innerHTML = '';
+  document.getElementById('tasks-done').style.display = 'none';
+  document.getElementById('tasks-done-list').innerHTML = '';
+  google.script.run
+    .withSuccessHandler(renderTasks)
+    .withFailureHandler(() => {
+      document.getElementById('tasks-loading').style.display = 'none';
+      showToast('Error loading tasks');
+    })
+    .getTodayTasks();
+}
+
+function renderTasks(tasks) {
+  document.getElementById('tasks-loading').style.display = 'none';
+  const list = document.getElementById('tasks-list');
+  if (!tasks.length) {
+    list.innerHTML = '<p style="text-align:center;color:#8e8e93;padding:40px;font-size:14px;">All done for today!</p>';
+    return;
+  }
+  list.innerHTML = tasks.map(t => `
+    <div class="task-card" id="task-${t.id}" role="button" tabindex="0"
+      onclick="doneTask(${t.id}, '${t.title.replace(/'/g, "\\'")}', this)"
+      onkeydown="if(event.key==='Enter'||event.key===' ')doneTask(${t.id},'${t.title.replace(/'/g, "\\'")}',this)">
+      <div class="task-icon cat-${t.category.toLowerCase()}" aria-hidden="true">${CAT_ICONS[t.category] || '📌'}</div>
+      <div class="task-info">
+        <div class="task-title">${t.title}</div>
+        <div class="task-sub">${t.frequency} · ${t.category}</div>
+      </div>
+      <div class="task-check" aria-hidden="true">○</div>
+    </div>
+  `).join('');
+}
+
+function doneTask(id, title, el) {
+  el.setAttribute('aria-disabled', 'true');
+  el.style.transition = 'transform .3s, opacity .3s';
+  el.style.transform = 'translateX(80px)';
+  el.style.opacity = '0';
+  setTimeout(() => {
+    el.remove();
+    showToast('Done: ' + title);
+    const doneList = document.getElementById('tasks-done-list');
+    document.getElementById('tasks-done').style.display = 'block';
+    doneList.innerHTML += `<div class="task-card muted" aria-label="${title} completed">
+      <div class="task-info"><div class="task-title">${title}</div></div>
+      <div class="task-check" aria-hidden="true">✓</div>
+    </div>`;
+  }, 280);
+  google.script.run
+    .withFailureHandler(() => showToast('Save failed — check your connection'))
+    .markTaskDone(id);
+}
+
+function loadSupplies() {
+  document.getElementById('supplies-loading').style.display = 'block';
+  document.getElementById('supplies-list').innerHTML = '';
+  google.script.run
+    .withSuccessHandler(renderSupplies)
+    .withFailureHandler(() => {
+      document.getElementById('supplies-loading').style.display = 'none';
+      showToast('Error loading supplies');
+    })
+    .getSupplies();
+}
+
+function renderSupplies(supplies) {
+  document.getElementById('supplies-loading').style.display = 'none';
+  const list = document.getElementById('supplies-list');
+  if (!supplies.length) {
+    list.innerHTML = '<p style="text-align:center;color:#8e8e93;padding:40px">No supplies set up yet</p>';
+    return;
+  }
+  list.innerHTML = supplies.map(s => {
+    const daysText = s.daysUntilReorder !== null
+      ? (s.daysUntilReorder <= 0 ? 'Overdue to order!' : 'Order in ' + s.daysUntilReorder + ' days')
+      : 'Set last order date to activate';
+    const showBtn = s.status === 'order_now' || s.status === 'order_soon' || s.status === 'needs_setup';
+    return `<div class="supply-card">
+      <div class="supply-header">
+        <div class="supply-name">${s.item}</div>
+        <span class="supply-badge ${STATUS_BADGES[s.status]}">${STATUS_LABELS[s.status]}</span>
+      </div>
+      <div class="supply-detail">${daysText} · Qty: ${s.qty} · Usage: ${s.dailyUsage}/day</div>
+      ${showBtn ? `<button class="btn-order" onclick="orderDone(${s.id}, '${s.item.replace(/'/g, "\\'")}', this)">Ordered</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function orderDone(id, item, btn) {
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+  google.script.run
+    .withSuccessHandler(() => {
+      showToast('Ordered ' + item + '! Reorder date set.');
+      loadSupplies();
+    })
+    .withFailureHandler(() => {
+      btn.disabled = false;
+      btn.textContent = 'Ordered';
+      showToast('Save failed — check your connection');
+    })
+    .markOrdered(id);
+}
+
+function updateVal(metric, val) {
+  document.getElementById('val-' + metric).textContent = val;
+}
+
+function submitHealth() {
+  const entry = {
+    energy: +document.getElementById('slider-energy').value,
+    sleep: +document.getElementById('slider-sleep').value,
+    focus: +document.getElementById('slider-focus').value,
+    mood: +document.getElementById('slider-mood').value,
+    confidence: +document.getElementById('slider-confidence').value,
+    notes: document.getElementById('health-notes').value
+  };
+  const btn = document.querySelector('.btn-primary');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+  google.script.run
+    .withSuccessHandler(r => {
+      showToast('Health logged! Overall: ' + r.overall + '/10');
+      btn.textContent = 'Saved';
+      btn.style.background = '#2e7d32';
+    })
+    .withFailureHandler(() => {
+      btn.disabled = false;
+      btn.textContent = 'Save Health Log';
+      showToast('Save failed — check your connection');
+    })
+    .logHealth(entry);
+}
+
+function loadCharts() {
+  document.getElementById('charts-loading').style.display = 'block';
+  document.getElementById('charts-container').innerHTML = '';
+  google.script.run
+    .withSuccessHandler(renderCharts)
+    .withFailureHandler(() => {
+      document.getElementById('charts-loading').style.display = 'none';
+      showToast('Error loading trends');
+    })
+    .getHealthTrends();
+}
+
+function renderCharts(rows) {
+  document.getElementById('charts-loading').style.display = 'none';
+  if (!rows.length) {
+    document.getElementById('charts-container').innerHTML =
+      '<p style="text-align:center;color:#8e8e93;padding:40px">No health data yet. Log some entries first!</p>';
+    return;
+  }
+  const last14 = rows.slice(-14);
+  const metrics = [
+    { key: 'energy', label: 'Energy (1-10)', color: '' },
+    { key: 'sleep', label: 'Sleep (hrs)', color: 'sleep' },
+    { key: 'mood', label: 'Mood (1-10)', color: 'mood' },
+    { key: 'overall', label: 'Overall Score', color: '' }
+  ];
+  document.getElementById('charts-container').innerHTML = metrics.map(m => {
+    const vals = last14.map(r => r[m.key]);
+    const max = Math.max(...vals, 1);
+    const avg = (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
+    const bars = vals.map(v => {
+      const pct = Math.round((v / max) * 100);
+      return '<div class="spark-bar ' + m.color + '" style="height:' + pct + '%" title="' + v + '"></div>';
+    }).join('');
+    const firstDate = new Date(last14[0].date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    const lastDate = new Date(last14[last14.length - 1].date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    return '<div class="chart-section"><div class="chart-title">' + m.label + '</div>' +
+      '<div class="sparkline" role="img" aria-label="' + m.label + ' chart">' + bars + '</div>' +
+      '<div class="chart-labels">' +
+        '<span class="chart-label">' + firstDate + '</span>' +
+        '<span class="chart-label">avg ' + avg + '</span>' +
+        '<span class="chart-label">' + lastDate + '</span>' +
+      '</div></div>';
+  }).join('');
+}
+
+function showToast(msg) {
+  let t = document.querySelector('.toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.className = 'toast';
+    t.setAttribute('role', 'status');
+    t.setAttribute('aria-live', 'polite');
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
