@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>ElderCare</title>
+  <style><?!= include('Styles'); ?></style>
+</head>
+<body>
+  <div id="app">
+    <nav class="bottom-nav">
+      <button class="nav-btn active" onclick="showScreen('today')" id="nav-today">
+        <span class="nav-icon">📋</span><span class="nav-label">Today</span>
+      </button>
+      <button class="nav-btn" onclick="showScreen('supplies')" id="nav-supplies">
+        <span class="nav-icon">📦</span><span class="nav-label">Supplies</span>
+      </button>
+      <button class="nav-btn" onclick="showScreen('health')" id="nav-health">
+        <span class="nav-icon">💚</span><span class="nav-label">Health</span>
+      </button>
+      <button class="nav-btn" onclick="showScreen('charts')" id="nav-charts">
+        <span class="nav-icon">📈</span><span class="nav-label">Trends</span>
+      </button>
+    </nav>
+
+    <div id="screen-today" class="screen active">
+      <div class="screen-header">
+        <h1>Today</h1>
+        <span id="today-date" class="header-date"></span>
+      </div>
+      <div id="tasks-loading" class="loading-spinner">Loading...</div>
+      <div id="tasks-list" class="card-list"></div>
+      <div id="tasks-done" class="done-section" style="display:none">
+        <h3 class="done-label">Done today</h3>
+        <div id="tasks-done-list" class="card-list muted"></div>
+      </div>
+    </div>
+
+    <div id="screen-supplies" class="screen">
+      <div class="screen-header"><h1>Supplies</h1></div>
+      <div id="supplies-loading" class="loading-spinner">Loading...</div>
+      <div id="supplies-list" class="card-list"></div>
+    </div>
+
+    <div id="screen-health" class="screen">
+      <div class="screen-header">
+        <h1>Health Log</h1>
+        <span class="header-date">How is mum today?</span>
+      </div>
+      <form id="health-form" class="health-form">
+        <div class="metric-row">
+          <label>Energy <span class="metric-val" id="val-energy">5</span></label>
+          <input type="range" min="1" max="10" value="5" id="slider-energy" oninput="updateVal('energy',this.value)">
+        </div>
+        <div class="metric-row">
+          <label>Sleep (hrs) <span class="metric-val" id="val-sleep">7</span></label>
+          <input type="range" min="1" max="12" value="7" step="0.5" id="slider-sleep" oninput="updateVal('sleep',this.value)">
+        </div>
+        <div class="metric-row">
+          <label>Focus <span class="metric-val" id="val-focus">5</span></label>
+          <input type="range" min="1" max="10" value="5" id="slider-focus" oninput="updateVal('focus',this.value)">
+        </div>
+        <div class="metric-row">
+          <label>Mood <span class="metric-val" id="val-mood">5</span></label>
+          <input type="range" min="1" max="10" value="5" id="slider-mood" oninput="updateVal('mood',this.value)">
+        </div>
+        <div class="metric-row">
+          <label>Confidence <span class="metric-val" id="val-confidence">5</span></label>
+          <input type="range" min="1" max="10" value="5" id="slider-confidence" oninput="updateVal('confidence',this.value)">
+        </div>
+        <div class="metric-row">
+          <label>Notes (optional)</label>
+          <input type="text" id="health-notes" placeholder="Anything unusual?" class="text-input">
+        </div>
+        <button type="button" onclick="submitHealth()" class="btn-primary">Save Health Log</button>
+      </form>
+    </div>
+
+    <div id="screen-charts" class="screen">
+      <div class="screen-header"><h1>Trends</h1></div>
+      <div id="charts-loading" class="loading-spinner">Loading...</div>
+      <div id="charts-container"></div>
+    </div>
+  </div>
+  <script><?!= include('App'); ?></script>
+</body>
+</html>
