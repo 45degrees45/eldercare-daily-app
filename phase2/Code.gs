@@ -123,7 +123,7 @@ function logHealth(entry) {
   const ss = SpreadsheetApp.openById(SHEET_ID);
   const sheet = ss.getSheetByName('HEALTH_LOG');
   const today = new Date();
-  const overall = ((entry.energy + entry.sleep + entry.focus + entry.mood + entry.confidence) / 4).toFixed(1);
+  const overall = ((entry.energy + entry.focus + entry.mood + entry.confidence) / 4).toFixed(1);
   sheet.appendRow([today, entry.energy, entry.sleep, entry.focus, entry.mood, entry.confidence, overall, entry.notes || '']);
   _log('logHealth', 'overall=' + overall);
   return { success: true, overall };
