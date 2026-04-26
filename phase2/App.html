@@ -1,8 +1,15 @@
-const state = { tasks: [], doneTasks: [], supplies: [], healthLogged: false };
-
 const CAT_ICONS = { Health: '💊', Finance: '💳', Home: '🏠', Garden: '🌱', Service: '🔧' };
 const STATUS_LABELS = { ok: 'Stock OK', order_soon: 'Order Soon', order_now: 'Order NOW', needs_setup: 'Setup needed' };
 const STATUS_BADGES = { ok: 'badge-ok', order_soon: 'badge-soon', order_now: 'badge-now', needs_setup: 'badge-setup' };
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('today-date').textContent =
@@ -47,12 +54,13 @@ function renderTasks(tasks) {
   }
   list.innerHTML = tasks.map(t => `
     <div class="task-card" id="task-${t.id}" role="button" tabindex="0"
-      onclick="doneTask(${t.id}, '${t.title.replace(/'/g, "\\'")}', this)"
-      onkeydown="if(event.key==='Enter'||event.key===' ')doneTask(${t.id},'${t.title.replace(/'/g, "\\'")}',this)">
+      data-id="${t.id}" data-title="${escapeHtml(t.title)}"
+      onclick="doneTask(this.dataset.id, this.dataset.title, this)"
+      onkeydown="if(event.key==='Enter'||event.key===' ')doneTask(this.dataset.id,this.dataset.title,this)">
       <div class="task-icon cat-${t.category.toLowerCase()}" aria-hidden="true">${CAT_ICONS[t.category] || '📌'}</div>
       <div class="task-info">
-        <div class="task-title">${t.title}</div>
-        <div class="task-sub">${t.frequency} · ${t.category}</div>
+        <div class="task-title">${escapeHtml(t.title)}</div>
+        <div class="task-sub">${escapeHtml(t.frequency)} · ${escapeHtml(t.category)}</div>
       </div>
       <div class="task-check" aria-hidden="true">○</div>
     </div>
@@ -60,6 +68,8 @@ function renderTasks(tasks) {
 }
 
 function doneTask(id, title, el) {
+  if (el.dataset.pending) return;
+  el.dataset.pending = '1';
   el.setAttribute('aria-disabled', 'true');
   el.style.transition = 'transform .3s, opacity .3s';
   el.style.transform = 'translateX(80px)';
@@ -69,8 +79,8 @@ function doneTask(id, title, el) {
     showToast('Done: ' + title);
     const doneList = document.getElementById('tasks-done-list');
     document.getElementById('tasks-done').style.display = 'block';
-    doneList.innerHTML += `<div class="task-card muted" aria-label="${title} completed">
-      <div class="task-info"><div class="task-title">${title}</div></div>
+    doneList.innerHTML += `<div class="task-card muted" aria-label="${escapeHtml(title)} completed">
+      <div class="task-info"><div class="task-title">${escapeHtml(title)}</div></div>
       <div class="task-check" aria-hidden="true">✓</div>
     </div>`;
   }, 280);
@@ -105,11 +115,11 @@ function renderSupplies(supplies) {
     const showBtn = s.status === 'order_now' || s.status === 'order_soon' || s.status === 'needs_setup';
     return `<div class="supply-card">
       <div class="supply-header">
-        <div class="supply-name">${s.item}</div>
+        <div class="supply-name">${escapeHtml(s.item)}</div>
         <span class="supply-badge ${STATUS_BADGES[s.status]}">${STATUS_LABELS[s.status]}</span>
       </div>
-      <div class="supply-detail">${daysText} · Qty: ${s.qty} · Usage: ${s.dailyUsage}/day</div>
-      ${showBtn ? `<button class="btn-order" onclick="orderDone(${s.id}, '${s.item.replace(/'/g, "\\'")}', this)">Ordered</button>` : ''}
+      <div class="supply-detail">${daysText} · Qty: ${escapeHtml(String(s.qty))} · Usage: ${escapeHtml(String(s.dailyUsage))}/day</div>
+      ${showBtn ? `<button class="btn-order" data-id="${s.id}" data-item="${escapeHtml(s.item)}" onclick="orderDone(this.dataset.id, this.dataset.item, this)">Ordered</button>` : ''}
     </div>`;
   }).join('');
 }
@@ -143,7 +153,7 @@ function submitHealth() {
     confidence: +document.getElementById('slider-confidence').value,
     notes: document.getElementById('health-notes').value
   };
-  const btn = document.querySelector('.btn-primary');
+  const btn = document.getElementById('health-submit');
   btn.disabled = true;
   btn.textContent = 'Saving...';
   google.script.run
