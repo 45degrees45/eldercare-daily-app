@@ -13,9 +13,14 @@ function include(filename) {
 }
 
 function _log(action, detail) {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
-  const log = ss.getSheetByName('LOG');
-  log.appendRow([new Date(), action, detail]);
+  try {
+    const ss = SpreadsheetApp.openById(SHEET_ID);
+    const log = ss.getSheetByName('LOG');
+    if (!log) return; // LOG sheet missing — degrade gracefully
+    log.appendRow([new Date(), action, detail]);
+  } catch(e) {
+    console.error('_log failed:', e);
+  }
 }
 
 function getTodayTasks() {
@@ -40,10 +45,11 @@ function getTodayTasks() {
       if (frequency === 'daily' && daysSince >= 1) isDueToday = true;
       if (frequency === 'weekly' && daysSince >= 7) isDueToday = true;
       if (frequency === 'monthly' && daysSince >= 28) isDueToday = true;
+      // 'once' frequency: shown when lastDone is empty (handled above), never reshown after completion
     }
 
     if (isDueToday) {
-      tasks.push({ id, title, category, frequency, lastDone: lastDone ? lastDone.toISOString() : '', row: i + 1 });
+      tasks.push({ id, title, category, frequency, lastDone: lastDone ? new Date(lastDone).toISOString() : '', row: i + 1 });
     }
   }
   return tasks;
@@ -56,7 +62,7 @@ function markTaskDone(taskId) {
   const today = new Date();
 
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0] == taskId) {
+    if (String(data[i][0]) === String(taskId)) {
       sheet.getRange(i + 1, 5).setValue(today);
       _log('markTaskDone', 'ID=' + taskId + ' title=' + data[i][1]);
       return { success: true, title: data[i][1] };
@@ -105,10 +111,13 @@ function markOrdered(supplyId) {
   const today = new Date();
 
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0] == supplyId) {
+    if (String(data[i][0]) === String(supplyId)) {
       const qty = data[i][3];
       const dailyUsage = data[i][4];
       const deliveryDays = data[i][5];
+      if (!dailyUsage || dailyUsage <= 0) {
+        return { success: false, error: 'Daily usage must be greater than 0' };
+      }
       sheet.getRange(i + 1, 7).setValue(today);
       const reorderDate = new Date(today.getTime() + ((qty / dailyUsage) - deliveryDays) * 86400000);
       sheet.getRange(i + 1, 8).setValue(reorderDate);
@@ -120,6 +129,12 @@ function markOrdered(supplyId) {
 }
 
 function logHealth(entry) {
+  const required = ['energy', 'sleep', 'focus', 'mood', 'confidence'];
+  for (const key of required) {
+    if (!Number.isFinite(entry[key])) {
+      return { success: false, error: 'Invalid value for ' + key };
+    }
+  }
   const ss = SpreadsheetApp.openById(SHEET_ID);
   const sheet = ss.getSheetByName('HEALTH_LOG');
   const today = new Date();
