@@ -1,4 +1,4 @@
-const SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
+const SHEET_ID = '1-HAYLWBQv9WHJVSflaxSbHXDr0Z6R8uOlxIsL8SpcDc';
 
 function doGet(e) {
   return HtmlService.createTemplateFromFile('Index')
